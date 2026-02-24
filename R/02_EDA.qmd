@@ -125,7 +125,7 @@ hist(bsf_scores$score)
 # also select Y variables of interst, predictors, and covariates of interest
 
 
-df_sub <- df %>% 
+df_subset <- df %>% 
   filter(flagg1+flagg2+flagg3==3) %>% 
   filter(g1classtype == g2classtype & g2classtype == g3classtype) %>% 
   mutate(class_type = as.factor(case_match(
@@ -160,5 +160,9 @@ df_sub <- df %>%
       str_detect(score_type, "g2") ~ 2,
       str_detect(score_type, "g3") ~ 3
     )))
+
+save(df_subset, file = "../data/df_subset.rda")
   
 ```
+
+
