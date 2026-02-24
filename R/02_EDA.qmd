@@ -1,0 +1,164 @@
+---
+title: "EDA"
+format: html
+---
+
+```{r}
+library(tidyverse)
+library(gt)
+load("../data/df.rda")
+```
+
+
+```{r}
+#EDA based on a few observations from the Users Guide
+# 1. only 26.6% participated for all four years
+
+all4 <- df %>% filter(flaggk+flagg1+flagg2+flagg3==4)
+
+# i get 2863, 24.67%
+
+# for students who participate for 4 years with the same class type
+
+all4_same_class <- df %>% 
+  filter(flaggk+flagg1+flagg2+flagg3==4) %>% 
+  filter(gkclasstype == g1classtype & g1classtype == g2classtype & g2classtype == g3classtype) 
+
+# n=1556, 13.4%
+
+# for students who participate for 3 years with the same class type
+
+all3_sameclass <- df %>% 
+  filter(flagg1+flagg2+flagg3==3) %>% 
+  filter(g1classtype == g2classtype & g2classtype == g3classtype) 
+
+# n=3423, 29.5%
+# this seems to be the right mix of selective and inclusive
+
+summary_table <- tibble(
+  group = c("Full Dataset",
+            "K through 4th grade", 
+            "K through 4th grade, same class type", 
+            "K through 3rd grade, same class type"),
+  n = c(nrow(df),
+        nrow(all4),
+        nrow(all4_same_class), 
+        nrow(all3_sameclass)),
+  percent = c(100,
+              nrow(all4)/nrow(df)*100, 
+              nrow(all4_same_class)/nrow(df)*100, 
+              nrow(all3_sameclass)/nrow(df)*100)
+)
+
+gt(summary_table) %>% 
+  fmt_number(columns = vars(percent), decimals = 2) %>% 
+  cols_label(group = "Group", n = "Number of Students", percent = "Percentage of Total") 
+
+```
+
+```{R}
+# 2. there are different scores to use, read/math/listening for SAT, also read/math BSF. 
+# each of these are available for each year. 
+
+score_cols_sat <- c('g1treadss', 'g1tmathss', 'g1tlistss', 
+                'g2treadss', 'g2tmathss', 'g2tlistss', 
+                'g3treadss', 'g3tmathss', 'g3tlistss')
+
+score_cols_bsf <- c('g1readbsraw', 'g1mathbsraw',
+                    'g2readbsraw', 'g2mathbsraw',
+                    'g3readbsraw', 'g3mathbsraw')
+
+sat_scores <- df %>% 
+  select(all_of(score_cols_sat)) %>% 
+  pivot_longer(cols = everything(), names_to = "score_type", values_to = "score") %>%
+  mutate(
+    class = case_when(
+      str_detect(score_type, "read") ~ "reading",
+      str_detect(score_type, "math") ~ "math",
+      str_detect(score_type, "list") ~ "listening"),
+    grade = as.factor(case_when(
+      str_detect(score_type, "g1") ~ 1,
+      str_detect(score_type, "g2") ~ 2,
+      str_detect(score_type, "g3") ~ 3
+    ))
+  ) 
+
+
+bsf_scores <- df %>%
+  select(all_of(score_cols_bsf)) %>%
+  pivot_longer(cols = everything(), names_to = "score_type", values_to = "score") %>%
+  mutate(
+    class = case_when(
+      str_detect(score_type, "read") ~ "reading",
+      str_detect(score_type, "math") ~ "math"),
+    grade = as.factor(case_when(
+      str_detect(score_type, "g1") ~ 1,
+      str_detect(score_type, "g2") ~ 2,
+      str_detect(score_type, "g3") ~ 3
+    ))
+  ) 
+
+
+sat_plot <- ggplot(sat_scores,
+       aes(x = class, y = score, fill=grade)) +
+  geom_violin() +
+  theme_minimal(); sat_plot
+
+# 
+bsf_plot <-ggplot(bsf_scores,
+                  aes(x = class, y = score, fill=grade)) +
+  geom_violin() +
+  theme_minimal(); bsf_plot
+
+hist(sat_scores$score)
+hist(bsf_scores$score)
+
+#observations: scores differ per class and per grade with a trend
+# as grade increases, scores increase, so either control or include in design
+# SAT scores are more nicely distributed than BSF scores
+# choose to use SAT scores
+```
+
+
+```{R}
+# subset dataset to students in all 3 years in the same class for each
+# also select Y variables of interst, predictors, and covariates of interest
+
+
+df_sub <- df %>% 
+  filter(flagg1+flagg2+flagg3==3) %>% 
+  filter(g1classtype == g2classtype & g2classtype == g3classtype) %>% 
+  mutate(class_type = as.factor(case_match(
+    g1classtype,
+    1 ~ "small",
+    2 ~ "regular",
+    3 ~ "regular_plus"
+  )),
+  gender = as.factor(case_match(
+    gender,
+    1 ~ "male",
+    2 ~ "female"
+  )),
+  race = as.factor(case_match(
+    race,
+    1 ~ "white",
+    2 ~ "black",
+    3 ~ "asian",
+    4 ~ "hispanic",
+    5 ~ "native_american",
+    6 ~ "other"
+  ))) %>% 
+  select(stdntid, gender, race, class_type, all_of(score_cols_sat)) %>% 
+  pivot_longer(cols = all_of(score_cols_sat), names_to = "score_type", values_to = "score") %>%
+  mutate(
+    subject = case_when(
+      str_detect(score_type, "read") ~ "reading",
+      str_detect(score_type, "math") ~ "math",
+      str_detect(score_type, "list") ~ "listening"),
+    grade = as.factor(case_when(
+      str_detect(score_type, "g1") ~ 1,
+      str_detect(score_type, "g2") ~ 2,
+      str_detect(score_type, "g3") ~ 3
+    )))
+  
+```
