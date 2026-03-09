@@ -1,0 +1,196 @@
+---
+title: "STA 207 Final - Inference"
+format: html
+---
+
+# Data loading and Libraries
+
+```{r, load data and libraries}
+load("C:/Users/user/Documents/GitHub/STA207/sta207-project/data/df_subset.rda")
+
+# Convert column "subject" into factor
+df_subset$subject <- as.factor(df_subset$subject)
+
+# Libraries
+library(dplyr)
+library(car)
+library(lme4)
+library(influence.ME)
+```
+
+# Inferential Analysis
+
+## Model Proposal:
+
+### Multiple Linear Regression
+
+To find the best multiple linear model, we begin with our full model selected from our EDA.
+We make the following assumptions for our models:
+
+1. Linearity: The relationship between predictors and the outcome is linear.
+2. Independence: Observations (students) are independent.
+3. Homoscedasticity: The variance of error terms is constant across groups.
+4. Normality: The residuals are approximately normally distributed.
+
+```{r, basic MLR model}
+full_model <- lm(score ~ class_type+subject+gender+race+grade+urban, df_subset)
+summary(full_model)
+```
+
+From the summary statistic, we see that all the variables are signifcantly associated with score.
+
+#### Include Interaction Terms
+
+Including the interaction of subject and grade significantly reduced the curvature of the residuals versus fitted values plot, so we include this interaction term for the following models.
+```{r, MLR with interaction}
+plot(full_model, which=1)
+
+inter_full <- lm(score ~ class_type+subject+gender+grade+urban+race+subject*grade, df_subset)
+summary(inter_full)
+plot(inter_full, which=1)
+```
+
+#### ANOVA With Type III Sum of Square
+
+We consider running ANOVA on this full model using Type III Sum of Squares:
+```{r, ANOVA test with type 3 SS}
+Anova(inter_full, type="III")
+```
+
+From the summaries of multiple linear model and the ANOVA, we don't find any variable that is obviously irrelavant to scores. Thus, we keep all these variables and continue to fit our mixed effect model to discover causal relationship.
+
+### Mixed Models
+We make the following assumptions for our mixed models:
+
+1. Linearity: The relationship between predictors and the outcome is linear.
+2. Independence: Observations (students) are independent.
+3. Homoscedasticity: The variance of error terms is constant across groups.
+4. Normality: The residuals are approximately normally distributed.
+
+Stratifying using `schid`: Grouping students by schools.
+
+```{r, mixed model with school as RE}
+mixed_model_sch <- lmer(score
+    ~ class_type
+    + subject
+    + gender
+    + race
+    + grade
+    + subject*grade
+    + (1|schid),
+    data=df_subset)
+
+summary(mixed_model_sch)
+```
+
+Stratifying using `stdntid`: Consider each student as a group.
+This is our final model.
+```{r, mixed model with student as RE}
+mixed_model_std <- lmer(score
+    ~ class_type
+    + subject
+    + gender
+    + race
+    + grade
+    + subject*grade
+    + (1|stdntid),
+    data=df_subset)
+
+summary(mixed_model_std)
+final_model <- mixed_model_std
+```
+
+Stratifying using both `schid` and `stdntid`: See how much does school affect the score.
+```{r, mixed model with student and school as RE}
+mixed_model_std_sch <- lmer(score
+    ~ class_type
+    + subject
+    + gender
+    + race
+    + grade
+    + subject*grade
+    + (1|stdntid)
+    + (1|schid),
+    data=df_subset)
+
+summary(mixed_model_std_sch)
+```
+
+# Sensitivity Analysis
+
+```{r, LOO plot}
+# Get a list of all unique school IDs
+all_schools <- unique(df_subset$schid)
+# Create a vector to store results
+results <- numeric(length(all_schools))
+
+for(i in 1:length(all_schools)) {
+  # Excluding one school
+  temp_data <- subset(df_subset, schid != all_schools[i])
+  
+  temp_model <- lmer(score ~ class_type + grade + gender + subject + race + subject*grade + (1|stdntid), data = temp_data)
+  
+  # Coefficient for small class size
+  results[i] <- fixef(temp_model)["class_typesmall"]
+}
+
+plot(results, main="Sensitivity: Leave-One-School-Out", ylab="Small Class Coefficient")
+abline(h = mean(results), col="red")
+```
+
+```{r, influence plot}
+# Calculate influence of schools
+influence_school <- influence(mixed_model_std_sch, group="schid")
+
+# Plot Cook's Distance
+plot(influence_school, which="cook")
+```
+
+# Plausibility Check
+## Linearity Check
+
+```{r, residual versus fitted plot for linearity}
+plot(final_model, type = c("p", "smooth"))
+```
+
+## Normality of Residuals and Random Effects
+```{r, histogram of residuals}
+# Plot the histogram of residuals
+res <- residuals(final_model)
+
+# Plot the histogram
+hist(res, 
+     breaks = 50, 
+     col = "skyblue", 
+     xlim = c(-100, 100),
+     main = "Histogram of Residuals", 
+     xlab = "Residuals")
+
+x <- seq(min(res), max(res), length = 100)
+y <- dnorm(x, mean = mean(res), sd = sd(res))/3
+y <- y * diff(hist(res, plot = FALSE)$mids[1:2]) * length(res)
+lines(x, y, col = "red", lwd = 2)
+```
+
+```{r, histogram of intercepts of student}
+# Plot the histogram for random effect: student
+random_effects <- ranef(final_model)
+student_intercepts <- random_effects$stdntid[, "(Intercept)"]
+hist(student_intercepts, 
+     breaks = 20, 
+     col = "darkseagreen", 
+     main = "Histogram of Random Intercepts (Students)", 
+     xlab = "Random Effect Estimate")
+```
+
+## Homoscedasticity
+```{r, residual versus fitted plot for homoscedasticity}
+plot(final_model)
+```
+
+# Conclusion
+
+Small class indeed leads to better students' performance, regardless of which school they attend or the innate intelligence each student have.
+
+
+<!-- TO-DO: Create images of the models' equations -->
