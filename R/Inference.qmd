@@ -6,7 +6,8 @@ format: html
 # Data loading and Libraries
 
 ```{r, load data and libraries}
-load("C:/Users/user/Documents/GitHub/STA207/sta207-project/data/df_subset.rda")
+getwd()
+load("../data/df_subset.rda")
 
 # Convert column "subject" into factor
 df_subset$subject <- as.factor(df_subset$subject)

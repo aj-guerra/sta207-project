@@ -32,6 +32,12 @@ all3_sameclass <- df %>%
   filter(flagg1+flagg2+flagg3==3) %>% 
   filter(g1classtype == g2classtype & g2classtype == g3classtype) 
 
+all3_sameclass_same_school <- df %>% 
+  filter(flagg1+flagg2+flagg3==3) %>% #in for all 3 grades
+  filter(g1classtype == g2classtype & g2classtype == g3classtype) %>%
+  filter(g1schid == g2schid & g2schid == g3schid) #same school each year
+
+
 # n=3423, 29.5%
 # this seems to be the right mix of selective and inclusive
 
@@ -39,15 +45,18 @@ summary_table <- tibble(
   group = c("Full Dataset",
             "K through 4th grade", 
             "K through 4th grade, same class type", 
-            "K through 3rd grade, same class type"),
+            "1st through 3rd grade, same class type",
+            "1st through 3rd grade, same class type, same school"),
   n = c(nrow(df),
         nrow(all4),
         nrow(all4_same_class), 
-        nrow(all3_sameclass)),
+        nrow(all3_sameclass),
+        nrow(all3_sameclass_same_school)),
   percent = c(100,
               nrow(all4)/nrow(df)*100, 
               nrow(all4_same_class)/nrow(df)*100, 
-              nrow(all3_sameclass)/nrow(df)*100)
+              nrow(all3_sameclass)/nrow(df)*100,
+              nrow(all3_sameclass_same_school)/nrow(df)*100)
 )
 
 gt(summary_table) %>% 
@@ -126,9 +135,9 @@ hist(bsf_scores$score)
 
 
 df_subset <- df %>% 
-  filter(flagg1+flagg2+flagg3==3) %>% 
-  filter(g1classtype == g2classtype & g2classtype == g3classtype) %>% 
-  filter(g1schid == g2schid & g2schid == g3schid) %>% 
+  filter(flagg1+flagg2+flagg3==3) %>% #in for all 3 grades
+  filter(g1classtype == g2classtype & g2classtype == g3classtype) %>%  #same class type each year
+  filter(g1schid == g2schid & g2schid == g3schid) %>% #same school each year
   mutate(class_type = as.factor(case_match(
     g1classtype,
     1 ~ "small",
@@ -174,5 +183,18 @@ df_subset <- df %>%
 save(df_subset, file = "../data/df_subset.rda")
   
 ```
+
+```{r}
+ggplot(df_subset,
+       aes(x = urban, y = score, fill=urban)) +
+  geom_violin(draw_quantiles=0.5) +
+  theme_minimal()
+
+ggplot(df_subset,
+       aes(x = race, y = score, fill=race)) +
+  geom_violin(draw_quantiles=0.5) +
+  theme_minimal()
+```
+
 
 
